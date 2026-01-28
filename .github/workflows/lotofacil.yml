@@ -2,9 +2,9 @@ name: Registrar Lotofácil
 
 on:
   schedule:
-    - cron: "0 22 * * *"
+    - cron: "0 22 * * 1-6"  # Segunda a sábado, 22h
   workflow_dispatch:
-
+  
 jobs:
   atualizar:
     runs-on: ubuntu-latest
@@ -59,3 +59,24 @@ jobs:
 
       - name: Push
         run: git push
+      - name: Enviar e-mail semanal (apenas sábados)
+        if: github.event.schedule != '' && contains(github.event.schedule, '0 22 * * 6')
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.EMAIL_FROM }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: "📊 Resumo Semanal Lotofácil"
+          to: ${{ secrets.EMAIL_TO }}
+          from: ${{ secrets.EMAIL_FROM }}
+          body: |
+            Olá, Gustavo!
+
+            Segue o arquivo atualizado com todos os registros da semana.
+
+            Abra o CSV anexo para ver o histórico completo.
+
+            Abraço,
+            Sistema Automático
+          attachments: loteria.csv
