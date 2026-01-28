@@ -2,12 +2,14 @@ name: Registrar Lotofácil
 
 on:
   schedule:
-    - cron: "0 22 * * 1-6"  # Segunda a sábado, 22h
+    - cron: "0 22 * * 1-6"
   workflow_dispatch:
-  
+
 jobs:
   atualizar:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # ← PERMISSÃO PARA ESCREVER NO REPOSITÓRIO
 
     steps:
       - name: Checkout
@@ -50,12 +52,14 @@ jobs:
           df.to_csv("lotofacil-30-dias.csv", index=False)
           EOF
 
-      - name: Commit
+      - name: Commit e Push
         run: |
-          git config user.email "actions@github.com"
-          git config user.name "GitHub Actions"
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
           git add lotofacil-30-dias.csv
-          git commit -m "Atualização automática" || echo "Nada a commitar"
+          git diff --cached --quiet || git commit -m "📊 Atualização automática $(date +'%d/%m/%Y %H:%M')"
+          git push
+
 
       - name: Push
         run: git push
