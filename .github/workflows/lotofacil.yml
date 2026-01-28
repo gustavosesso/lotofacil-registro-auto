@@ -2,18 +2,19 @@ name: Registrar Lotofácil
 
 on:
   schedule:
-    - cron: "0 22 * * 1-6"
+    - cron: "0 22 * * 1-6"  # Segunda a sábado, 22h
   workflow_dispatch:
 
 jobs:
   atualizar:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write  # ← PERMISSÃO PARA ESCREVER NO REPOSITÓRIO
 
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -24,7 +25,7 @@ jobs:
         run: pip install requests bs4 pandas lxml
 
       - name: Coletar resultado da Lotofácil
-        run: |
+        run: 
           python <<EOF
           import requests
           import pandas as pd
@@ -44,25 +45,25 @@ jobs:
           linha = {"Data": data, "Dezenas": " ".join(dezenas_filtradas)}
 
           try:
-              df = pd.read_csv("lotofacil-30-dias.csv")
+              df = pd.read_csv("lotofacil.csv")
               df = pd.concat([df, pd.DataFrame([linha])], ignore_index=True)
           except:
               df = pd.DataFrame([linha])
 
-          df.to_csv("lotofacil-30-dias.csv", index=False)
+          df.to_csv("lotofacil.csv", index=False)
+          print(f"✅ Registrado: {data} → {' '.join(dezenas_filtradas)}")
           EOF
 
-      - name: Commit e Push
+      - name: Commit
         run: |
-          git config --local user.email "actions@github.com"
-          git config --local user.name "GitHub Actions"
-          git add lotofacil-30-dias.csv
-          git diff --cached --quiet || git commit -m "📊 Atualização automática $(date +'%d/%m/%Y %H:%M')"
-          git push
-
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git add loteria.csv
+          git commit -m "📊 Atualização automática - $(date +'%d/%m/%Y')" || echo "Nada a commitar"
 
       - name: Push
         run: git push
+
       - name: Enviar e-mail semanal (apenas sábados)
         if: github.event.schedule != '' && contains(github.event.schedule, '0 22 * * 6')
         uses: dawidd6/action-send-mail@v3
@@ -83,4 +84,4 @@ jobs:
 
             Abraço,
             Sistema Automático
-          attachments: lotofacil-30-dias.csv
+          attachments: lotofacil.csv
