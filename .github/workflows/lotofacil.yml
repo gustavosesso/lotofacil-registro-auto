@@ -1,8 +1,8 @@
-name: Registrar Lotofácil
+name: Registrar Lotofacil
 
 on:
   schedule:
-    - cron: "0 22 * * 1-6"  # Segunda a sábado, 22h
+    - cron: "0 22 * * 1-6"  # Segunda a sábado, 22h (UTC)
   workflow_dispatch:
 
 jobs:
@@ -22,10 +22,11 @@ jobs:
           python-version: "3.10"
 
       - name: Instalar libs
-        run: pip install requests bs4 pandas lxml
+        run: |
+          pip install requests beautifulsoup4 pandas lxml
 
-      - name: Coletar resultado da Lotofácil
-        run: 
+      - name: Coletar resultado da Lotofacil
+        run: |
           python <<EOF
           import requests
           import pandas as pd
@@ -36,9 +37,11 @@ jobs:
           html = requests.get(url).text
           soup = BeautifulSoup(html, "lxml")
 
-          dezenas = [d.text.strip() for d in soup.select(".ng-binding.ng-scope")]
+          # Atenção: o seletor abaixo é um chute; o site usa Angular e pode mudar.
+          # Idealmente, você ajustaria pelo HTML real capturado.
+          dezenas = [d.text.strip() for d in soup.select(".resultado-loteria .ng-binding")]
 
-          # Filtrar apenas as últimas 15 dezenas
+          # Filtrar apenas as últimas 15 dezenas numéricas
           dezenas_filtradas = [d for d in dezenas if d.isdigit()][:15]
 
           data = datetime.now().strftime("%d/%m/%Y")
@@ -47,22 +50,28 @@ jobs:
           try:
               df = pd.read_csv("lotofacil.csv")
               df = pd.concat([df, pd.DataFrame([linha])], ignore_index=True)
-          except:
+          except FileNotFoundError:
               df = pd.DataFrame([linha])
 
           df.to_csv("lotofacil.csv", index=False)
-          print(f"✅ Registrado: {data} → {' '.join(dezenas_filtradas)}")
+          print(f"Registrado: {data} -> {' '.join(dezenas_filtradas)}")
           EOF
 
       - name: Commit
         run: |
           git config user.email "actions@github.com"
           git config user.name "GitHub Actions"
-          git add loteria.csv
-          git commit -m "📊 Atualização automática - $(date +'%d/%m/%Y')" || echo "Nada a commitar"
+          git add lotofacil.csv
+
+          if git diff --cached --quiet; then
+            echo "Nada a commitar"
+          else
+            git commit -m "Atualização automática - $(date +'%d/%m/%Y')"
+          fi
 
       - name: Push
-        run: git push
+        run: |
+          git push
 
       - name: Enviar e-mail semanal (apenas sábados)
         if: github.event.schedule != '' && contains(github.event.schedule, '0 22 * * 6')
@@ -72,7 +81,7 @@ jobs:
           server_port: ${{ secrets.SMTP_PORT }}
           username: ${{ secrets.EMAIL_FROM }}
           password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: "📊 Resumo Semanal Lotofácil"
+          subject: "Resumo Semanal Lotofacil"
           to: ${{ secrets.EMAIL_TO }}
           from: ${{ secrets.EMAIL_FROM }}
           body: |
