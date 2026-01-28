@@ -42,19 +42,19 @@ jobs:
           linha = {"Data": data, "Dezenas": " ".join(dezenas_filtradas)}
 
           try:
-              df = pd.read_csv("loteria.csv")
+              df = pd.read_csv("lotofacil-30-dias.csv")
               df = pd.concat([df, pd.DataFrame([linha])], ignore_index=True)
           except:
               df = pd.DataFrame([linha])
 
-          df.to_csv("loteria.csv", index=False)
+          df.to_csv("lotofacil-30-dias.csv", index=False)
           EOF
 
       - name: Commit
         run: |
           git config user.email "actions@github.com"
           git config user.name "GitHub Actions"
-          git add loteria.csv
+          git add lotofacil-30-dias.csv
           git commit -m "Atualização automática" || echo "Nada a commitar"
 
       - name: Push
@@ -79,4 +79,4 @@ jobs:
 
             Abraço,
             Sistema Automático
-          attachments: loteria.csv
+          attachments: lotofacil-30-dias.csv
