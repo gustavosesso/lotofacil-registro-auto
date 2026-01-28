@@ -1,0 +1,61 @@
+name: Registrar Lotofácil
+
+on:
+  schedule:
+    - cron: "0 22 * * *"
+  workflow_dispatch:
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Instalar libs
+        run: pip install requests bs4 pandas lxml
+
+      - name: Coletar resultado da Lotofácil
+        run: |
+          python <<EOF
+          import requests
+          import pandas as pd
+          from bs4 import BeautifulSoup
+          from datetime import datetime
+
+          url = "https://loterias.caixa.gov.br/Paginas/Lotofacil.aspx"
+          html = requests.get(url).text
+          soup = BeautifulSoup(html, "lxml")
+
+          dezenas = [d.text.strip() for d in soup.select(".ng-binding.ng-scope")]
+
+          # Filtrar apenas as últimas 15 dezenas
+          dezenas_filtradas = [d for d in dezenas if d.isdigit()][:15]
+
+          data = datetime.now().strftime("%d/%m/%Y")
+          linha = {"Data": data, "Dezenas": " ".join(dezenas_filtradas)}
+
+          try:
+              df = pd.read_csv("loteria.csv")
+              df = pd.concat([df, pd.DataFrame([linha])], ignore_index=True)
+          except:
+              df = pd.DataFrame([linha])
+
+          df.to_csv("loteria.csv", index=False)
+          EOF
+
+      - name: Commit
+        run: |
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git add loteria.csv
+          git commit -m "Atualização automática" || echo "Nada a commitar"
+
+      - name: Push
+        run: git push
