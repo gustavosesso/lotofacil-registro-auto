@@ -109,6 +109,7 @@ jobs:
 
       - name: Push
         run: |
+          git pull --rebase origin main
           git push
           echo "🚀 Push realizado com sucesso"
 
