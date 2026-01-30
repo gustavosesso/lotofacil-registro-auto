@@ -32,66 +32,68 @@ jobs:
           import pandas as pd
           from datetime import datetime
 
-          # API oficial da Caixa (retorna JSON com último concurso)
-          url = "https://servicebus2.caixa.gov.br/portaldeloterias/api/lotofacil/"
+          # Tentar API oficial primeiro
+          urls = [
+              "https://servicebus2.caixa.gov.br/portaldeloterias/api/lotofacil/",
+              "https://loteriascaixa.com.br/api/lotofacil/ultimo"
+          ]
+
+          dados = None
+          for url in urls:
+              try:
+                  print(f"🔍 Tentando: {url}")
+                  response = requests.get(url, timeout=15)
+                  response.raise_for_status()
+                  dados = response.json()
+                  print(f"✅ Sucesso com: {url}")
+                  break
+              except Exception as e:
+                  print(f"⚠️ Falhou: {e}")
+                  continue
+
+          if not dados:
+              print("❌ Nenhuma API respondeu")
+              exit(1)
+
+          # Extrair dezenas (tentar diferentes formatos)
+          dezenas = (
+              dados.get("listaDezenas") or 
+              dados.get("dezenas") or 
+              dados.get("numeros") or
+              []
+          )
+
+          # Extrair data
+          data_sorteio = (
+              dados.get("dataApuracao") or
+              dados.get("data") or
+              datetime.now().strftime("%d/%m/%Y")
+          )
+
+          print(f"📅 Data: {data_sorteio}")
+          print(f"🎲 Dezenas: {dezenas}")
+
+          if not dezenas or len(dezenas) < 15:
+              print("⚠️ Dezenas insuficientes")
+              exit(0)
+
+          # Garantir que são strings com zero à esquerda
+          dezenas = [str(d).zfill(2) for d in dezenas[:15]]
+          dezenas_str = " ".join(dezenas)
+
+          linha = {"Data": data_sorteio, "Dezenas": dezenas_str}
 
           try:
-              print("🔍 Consultando API da Caixa...")
-              response = requests.get(url, timeout=15)
-              response.raise_for_status()
-              dados = response.json()
-
-              # Extrair informações do concurso
-              dezenas = dados.get("listaDezenas", [])
-              data_sorteio = dados.get("dataApuracao", "")
-              numero_concurso = dados.get("numero", "")
-
-              print(f"📊 Concurso: {numero_concurso}")
-              print(f"📅 Data: {data_sorteio}")
-              print(f"🎲 Dezenas: {dezenas}")
-
-              if not dezenas or len(dezenas) != 15:
-                  print("⚠️ Nenhuma dezena válida encontrada na API")
+              df = pd.read_csv("lotofacil.csv")
+              if data_sorteio in df["Data"].values:
+                  print(f"✅ Já registrado: {data_sorteio}")
                   exit(0)
+              df = pd.concat([df, pd.DataFrame([linha])], ignore_index=True)
+          except FileNotFoundError:
+              df = pd.DataFrame([linha])
 
-              # Formatar dezenas como string separada por espaço
-              dezenas_str = " ".join(dezenas)
-
-              # Usar data da API ou data atual
-              if not data_sorteio:
-                  data_sorteio = datetime.now().strftime("%d/%m/%Y")
-
-              linha = {"Data": data_sorteio, "Dezenas": dezenas_str}
-
-              # Ler CSV existente ou criar novo
-              try:
-                  df = pd.read_csv("lotofacil.csv")
-                  print(f"📂 CSV existente encontrado com {len(df)} linhas")
-
-                  # Evitar duplicatas: só adiciona se a data não existir
-                  if data_sorteio in df["Data"].values:
-                      print(f"✅ Sorteio de {data_sorteio} já registrado")
-                      exit(0)
-                  else:
-                      df = pd.concat([df, pd.DataFrame([linha])], ignore_index=True)
-                      print(f"➕ Nova linha adicionada")
-              except FileNotFoundError:
-                  print("📄 Criando novo CSV")
-                  df = pd.DataFrame([linha])
-
-              # Salvar CSV
-              df.to_csv("lotofacil.csv", index=False)
-              print(f"✅ Registrado: {data_sorteio} → {dezenas_str}")
-              print(f"📊 Total de registros: {len(df)}")
-
-          except requests.exceptions.RequestException as e:
-              print(f"❌ Erro ao acessar API: {e}")
-              exit(1)
-          except Exception as e:
-              print(f"❌ Erro inesperado: {e}")
-              import traceback
-              traceback.print_exc()
-              exit(1)
+          df.to_csv("lotofacil.csv", index=False)
+          print(f"✅ Registrado: {data_sorteio} → {dezenas_str}")
           EOF
 
       - name: Commit
@@ -109,7 +111,7 @@ jobs:
 
       - name: Push
         run: |
-          git pull --rebase origin main
+          git pull --rebase origin main || echo "Nada para puxar"
           git push
           echo "🚀 Push realizado com sucesso"
 
